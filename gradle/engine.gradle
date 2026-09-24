@@ -1,0 +1,59 @@
+repositories {
+    ivy {
+        url = 'https://github.com/f-api/webcraft-engine/releases/download'
+        patternLayout { artifact 'v[revision]/[artifact]-[revision](-[classifier]).[ext]' }
+        metadataSources { artifact() }
+        content { includeModule('io.github.f-api', 'webcraft-engine') }
+    }
+}
+
+tasks.register('verifyEngine') {
+    def engineArtifact = providers.provider {
+        configurations.compileClasspath.resolvedConfiguration.resolvedArtifacts.find {
+            it.moduleVersion.id.group == 'io.github.f-api' && it.name == 'webcraft-engine'
+        }
+    }
+    inputs.file(engineArtifact.map { it.file })
+    doLast {
+        def artifact = engineArtifact.get()
+        def webcraftEngineVersion = artifact.moduleVersion.id.version
+        def checksumFile = new File(gradle.gradleUserHomeDir,
+                "caches/webcraft-engine/${webcraftEngineVersion}/SHA256SUMS")
+        if (!checksumFile.exists()) {
+            if (gradle.startParameter.offline) {
+                throw new GradleException('Engine checksum is not cached. Run Gradle online once.')
+            }
+            def connection = new URI("https://github.com/f-api/webcraft-engine/releases/download/v${webcraftEngineVersion}/SHA256SUMS")
+                    .toURL().openConnection()
+            connection.connectTimeout = 15000
+            connection.readTimeout = 30000
+            def checksums = connection.inputStream.withCloseable { it.getText('UTF-8') }
+            if (!checksums.readLines().any { it.endsWith("  webcraft-engine-${webcraftEngineVersion}.jar") }) {
+                throw new GradleException('Engine release checksum is missing')
+            }
+            checksumFile.parentFile.mkdirs()
+            def temporary = File.createTempFile('checksums-', '.tmp', checksumFile.parentFile)
+            try {
+                temporary.setText(checksums, 'UTF-8')
+                java.nio.file.Files.move(temporary.toPath(), checksumFile.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } finally {
+                temporary.delete()
+            }
+        }
+        def expected = checksumFile.readLines().find {
+            it.endsWith("  webcraft-engine-${webcraftEngineVersion}.jar")
+        }?.split(/\s+/)?.first()
+        def actual = java.security.MessageDigest.getInstance('SHA-256')
+                .digest(artifact.file.bytes).encodeHex().toString()
+        if (actual != expected) {
+            throw new GradleException('WebCraft Engine checksum mismatch')
+        }
+    }
+}
+
+tasks.named('compileJava') { dependsOn tasks.named('verifyEngine') }
+
+tasks.named('bootRun') {
+    optimizedLaunch = false
+}
