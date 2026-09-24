@@ -35,7 +35,3 @@ out/
 
 ### VS Code ###
 .vscode/
-
-### local ###
-docker/.env
-docker/initdb/*.sql.gz
