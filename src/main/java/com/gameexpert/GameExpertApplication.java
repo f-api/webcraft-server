@@ -1,6 +1,7 @@
 package com.gameexpert;
 
 import com.gameexpert.bootstrap.EngineComponentFilter;
+import com.gameexpert.world.FixedWorldImport;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -14,6 +15,8 @@ import org.springframework.context.annotation.FilterType;
                 AutoConfigurationExcludeFilter.class}))
 public class GameExpertApplication {
     public static void main(String[] args) {
-        SpringApplication.run(GameExpertApplication.class, args);
+        SpringApplication application = new SpringApplication(GameExpertApplication.class);
+        application.addListeners(new FixedWorldImport());
+        application.run(args);
     }
 }
